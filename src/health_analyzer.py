@@ -4,7 +4,7 @@ Klassen HealthAnalyzer för analys av hälsodata.
 
 import matplotlib.pyplot as plt
 
-from .health_functions import descriptive_stats,welch_ttest
+from .health_functions import descriptive_stats,welch_ttest, two_proportion_ztest
 
 class HealthAnalyzer:
     """
@@ -117,4 +117,78 @@ class HealthAnalyzer:
         ax.grid(True, axis="y")
         ax.legend()
         return ax
-    
+
+    def rate_by_group(self, group_cols, target_col = "disease"):
+        """
+        Beräknar antal personer och andelen med target_col = 1 per grupp.
+        
+        Paraametrar
+        -----------
+        group_cols : str eller list of str
+            Kolumnen eller kolumnerna som grupperna bildas av.
+        target_col : str, standard "disease"
+            en 0/1-kolumn.   
+
+        Returnerar
+        ----------
+        pandas.DataFrame
+            Antal och andel per grupp.
+        """
+        return (self.df.groupby(group_cols)[target_col]
+                .agg(antal="size", andel="mean")
+                .round(3))
+
+    def compare_rates(self, group_col, group1, group2, target_col="disease"):
+        """
+        Jämför andelen med target_col = 1 mellan två grupper med ett z-test.
+        
+        Retunerar
+        ---------
+        dict
+            Andelar, skillnad, z-värde och p-värde.
+        """
+        x1 = self.df.loc[self.df[group_col] == group1, target_col]
+        x2 = self.df.loc[self.df[group_col] == group2, target_col]
+        p1, p2, z, p_value = two_proportion_ztest(x1, x2)
+
+        return {
+            "andel_grupp1": p1,
+            "andel_grupp2": p2,
+            "skillnad" : p1 - p2,
+            "z" : z,
+            "p" : p_value,
+        }
+
+    def plot_rate_by_group(self, group_col, hue_col, target_col = "disease", ax = None):
+        """
+        Staplediagram över andelen med target_col = 1, uppdelat på två kolumner.
+        
+        Parametrar
+        ----------
+        group_col : str
+            Kolumnen spå x-axeln, t.ex. "sex".
+        hue_col : str
+            Kolumnen som ger staplar sida vid sida, t-ex. "smoker"
+        target_col : str, standard "disease"
+            En 0/1-kolumn.
+        ax : matplotlib.axes.Axes, valfri
+            Axel att rita i.
+        
+        
+        Retunerar
+        ---------
+        matplotlib.axes.Axes
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize = (8,5))
+
+        table = self.df.pivot_table(index=group_col, columns=hue_col,
+                                    values=target_col, aggfunc="mean") * 100
+        table.plot (kind="bar", ax=ax, edgecolor="black",rot=0)
+
+        ax.set_title(f"Andel med {target_col} per {group_col} och {hue_col}")
+        ax.set_xlabel(group_col)
+        ax.set_ylabel("Andel (%)")
+        ax.grid(True, axis="y")
+        ax.legend(title = hue_col)
+        return ax

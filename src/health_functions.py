@@ -1,13 +1,8 @@
-
-
-
-
-
 """
-Funktioner fäör analys av hälsodata.
+Funktioner för analys av hälsodata.
 
 Modulen innehåller funktioner för beskrivande statistik, simulering, 
-konfidensinterval, hypotesprövning och powersimulering.
+konfidensintervall, hypotesprövning och powersimulering.
 """
 
 import numpy as np
@@ -20,16 +15,15 @@ def descriptive_stats(df, cols):
     Parametrar
     ----------
     
-    df:pandas.DataFrame
+    df : pandas.DataFrame
         Datan som ska analyseras.
-    cols: list of str
+    cols : list of str
         Kolumnerna som statistiken ska beräknas för.
     
     Returnerar
-    
     ----------
     pandas.DataFrame
-        n tabell med statistiken, avrunda till två decimaler.
+        En tabell med statistiken, avrundad till två decimaler.
     """
     return df[cols].agg(["mean", "median", "min", "max"]).round(2)
 
@@ -43,16 +37,15 @@ def simulate_disease_share(p, n, rng):
         Sannolikheten för sjukdom.
     n : int
         Antal simulerade personer.
-    rng :numpy.random.Generator
-        Slumpgenerator med seed, för reprducerbara resultat.
+    rng : numpy.random.Generator
+        Slumpgenerator med seed, för reproducerbara resultat.
         
     Returnerar
     ----------
-    
     p_sim : float
         Andelen sjuka i simuleringen.
     se : float
-        Förväntat standardfelbför andelen, sqrt(p(1-p)/n).
+        Förväntat standardfelet för andelen, sqrt(p(1-p)/n).
     """
     simulated = rng.random(n) < p
     p_sim = float(simulated.mean())
@@ -61,12 +54,12 @@ def simulate_disease_share(p, n, rng):
 
 def ci_mean_normal(x, confidence = 0.95):
     """
-    Konfidensinterval för medelvärdet med normalapproximation:
+    konfidensintervall för medelvärdet med normalapproximation:
     medel ± z * (sd / sqrt(n)).
     
     Parametrar
     ----------
-    x : array - like
+    x : array-like
         Datan.
     confidence : float, standard 0.95
         Konfidensnivå.
@@ -74,8 +67,10 @@ def ci_mean_normal(x, confidence = 0.95):
     Returnerar
     ----------
     lo, hi : float
+        Nedre och övre gräns för intervallet.
+    mean_x = float
         Medelvärdet.
-    sd_x = float
+    sd_x : float
         Standardavvikelsen(ddof = 1).
     n : int
         Antal observationer.
@@ -93,12 +88,12 @@ def ci_mean_bootstrap(x, rng, B=10_000, confidence=0.95):
     """
     Konfidensintervall för medelvärdet med bootstrap(percentilmetoden).
     
-    PAramatrar
+    Parametrar
     ----------
     x : array-like
-    Datan
+        Datan
     rng : numpy.random.Generator
-    Slumpgenerator med seed.
+        Slumpgenerator med seed.
     B : int, standard 10 000
         Antal bootstrap-stickprov.
     confidence : float,standard 0.95
@@ -110,7 +105,7 @@ def ci_mean_bootstrap(x, rng, B=10_000, confidence=0.95):
         Nedre och övre gräns för intervallet.
     mean_x : float
         Medelvärdet av originaldatan
-    boot_means = numpy.ndarray
+    boot_means : numpy.ndarray
         Alla B bootstrap-medelvärden.
     """
     x = np.asarray(x, dtype = float)
@@ -131,9 +126,9 @@ def welch_ttest(group1, group2, alternative = "greater"):
     Parametrar
     ---------
     group1, group2 : array-like
-        De två grupperna jämförs.
+        De två grupperna som jämförs.   
     alternative : str, standard "greater"
-        "greater" tester om group1 har högre medelvärde än group2
+        "greater" testar om group1 har högre medelvärde än group2
         
     Returnerar
     ----------
@@ -149,8 +144,8 @@ def welch_ttest(group1, group2, alternative = "greater"):
 
 def run_one_t_test(n1, n2, true_diff, sd, base_mean, rng):
     """En simulerad studie: skapar normalfördelade blodtryck för två grupper
-    for kör Welchs t-test
-    
+    och kör Welchs t-test.
+
     Returnerar
     ---------
     float 
@@ -171,7 +166,7 @@ def estimate_power_by_simulation(n1, n2, true_diff, sd, base_mean, rng,
     Returnerar
     ---------
     float
-        Andelen simulerinagr där skillnaden hittades (power).
+        Andelen simuleringar där skillnaden hittades (power).
     """
     detections = 0
     for _ in  range(num_simulations):
@@ -179,3 +174,72 @@ def estimate_power_by_simulation(n1, n2, true_diff, sd, base_mean, rng,
         if p < alpha:
             detections += 1
     return detections / num_simulations
+
+def fit_linear_regression(df, x_cols, y_col):
+    """Anpassar en linjär regression med minsta kvadratmetoden (numpy). 
+    
+    Modellen skrivs i matrisform som y = X . beta, där X har en kolumn med ettor (för interceptet) och en kolumn per förklarande variabel.
+    
+    Parametrar
+    ----------
+    df : pandas.DataFrame
+        Datan
+    x_cols : list of str
+        De förklarande variablerna, t.ex. ["age].
+    y_cols : str
+        Variabeln som ska förutsägas, t.ex. "systolic_bp".
+
+    Returnerar
+    ----------
+    coefs : dict
+        Interceptet och en koefficient per förklarande variabel.
+    r2 : float
+        Förklaringsgraden R².
+    y_pred : numpy.ndarray
+        Modellens förutsagda värden.
+    """
+    X = np.column_stack([np.ones(len(df)), df[x_cols].to_numpy(dtype=float)])
+    y = df[y_col].to_numpy(dtype=float)
+
+    beta,*_ = np.linalg.lstsq(X, y, rcond=None)
+
+    y_pred = X @ beta
+    ss_res = np.sum((y - y_pred) ** 2)
+    ss_tot = np.sum((y - y.mean()) ** 2)
+    r2 = 1 - ss_res / ss_tot 
+
+    coefs = dict(zip(["intercept"] + list(x_cols), beta))
+    return coefs, float(r2), y_pred
+
+def two_proportion_ztest(x1, x2):
+    """
+    z-test för skillnaden mellan två andelar (tvåsidigt).
+    
+    Används för ja/nej-variabler (0/1), t.ex om andelen sjuka skiljer sig
+    mellan två grupper.
+    
+    Parametrar
+    ----------
+    x1, x2 : array - like
+        0/1-värden för grupp 1 och grupp 2.
+
+    Returnerar
+    ----------
+    p1, p2 : float
+        Andelen ettor i resppektive grupp.
+    z : float
+        z-värdet.
+    p_value : float
+        Tvåsidigt p_värde.
+    """
+    x1 = np.asarray(x1, dtype=float)
+    x2 = np.asarray(x2, dtype=float)
+    n1, n2 = len(x1), len(x2)
+    p1, p2 = x1.mean(), x2.mean()
+
+    p_pool = (x1.sum() + x2.sum()) / (n1 + n2)
+    se = np.sqrt(p_pool * (1 - p_pool) * (1 / n1 + 1 / n2))
+    z = (p1 - p2) / se
+    p_value = 2 * stats.norm.sf(abs(z))
+
+    return float(p1), float(p2), float(z), float(p_value)
