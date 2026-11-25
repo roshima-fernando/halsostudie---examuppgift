@@ -271,6 +271,6 @@ def compare_regression_models(df, models, y_col):
         k = len(x_cols)
         adj_r2 = 1 - (1 - r2) * (n - 1) / (n - k - 1)
         rmse = np.sqrt(np.mean((df[y_col].to_numpy() - y_pred) ** 2))
-        rows.append({"modell":name,"antal:variabler": k, 
+        rows.append({"modell":name,"antal_variabler": k, 
                     "R2": r2, "justerat_R2" : adj_r2, "RMSE":rmse})
     return pd.DataFrame(rows).set_index("modell").round(4)
