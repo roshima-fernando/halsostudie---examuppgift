@@ -3,8 +3,15 @@ Klassen HealthAnalyzer för analys av hälsodata.
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 
-from .health_functions import descriptive_stats,welch_ttest, two_proportion_ztest
+from .health_functions import(
+    descriptive_stats,
+    welch_ttest, 
+    two_proportion_ztest,
+    fit_linear_regression,
+    compare_regression_models
+)
 
 class HealthAnalyzer:
     """
@@ -24,6 +31,7 @@ class HealthAnalyzer:
     def __init__(self, df):
         """Sparar datan i objektet så att alla metoder kan använda den."""
         self.df = df
+        self.results = {}
 
     def __repr__(self):
         """Visar en kort beskrivning av objektet"""
@@ -191,4 +199,121 @@ class HealthAnalyzer:
         ax.set_ylabel("Andel (%)")
         ax.grid(True, axis="y")
         ax.legend(title = hue_col)
+        return ax
+
+    def fit_regression(self, x_cols, y_col="systolic_bp"):
+        """
+        Anpassar en linjär regression och sparar resultatet i self.results.
+        
+        Parametrar
+        ----------
+        x_cols : list of str
+            De förklarande variablerna, t.ex.["age","weight"]
+        y_col : str, standard "systolic_bp"
+            Variabeln som ska förutsägas.
+
+        Returnerar
+        ----------
+        coefs : dict
+            Interceptet och koefficienterna.
+        r2 : float
+            Förklaringsgraden R
+        y_pred : numpy.ndarray
+            Modellens förutsagda Värden.  
+        """
+        coefs, r2, y_pred = fit_linear_regression(self.df, x_cols, y_col)
+
+        model_name = f"{y_col} ~ {' + '.join(x_cols)}"
+        self.results[model_name] = {"koefficienter": coefs, "R2" : r2}
+
+        return coefs,r2,y_pred
+
+    def compare_models(self, models, y_col = "systolic_bp"):
+        """
+        Jämföra flera regressionsmodeller med R², justerat R² och RMSE.
+        
+        Parametrar
+        ----------
+        models : dict
+            Modellnamn som nycklar och listor med variabler som värden.
+        y_col : str, standard "systolic_bp"
+            Variabeln som ska förutsägas.
+
+        Returnerar
+        ----------
+        pandas.DataFrame
+            En rad per modell.
+        """
+        return compare_regression_models(self.df, models, y_col)
+
+    def plot_regression(self, x_col, y_col="systolic_bp", ax=None):
+        """
+        Spridningsdiagram med regressionslinje för en förklarande variabel.
+
+        Parametrar
+        ----------
+        x_col : str
+            Variabeln på x-axeln, t.ex. "age".
+        y_col : str, standard "systolic_bp"
+            Variabeln på y-axeln.
+        ax : matplotlib.axes.Axes, valfri
+            Axel att rita i.
+
+        Returnerar
+        ----------
+        matplotlib.axes.Axes
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 5))
+
+        coefs, r2, _ = self.fit_regression([x_col], y_col)
+
+        ax.scatter(self.df[x_col], self.df[y_col], alpha=0.4, label="Deltagare")
+        x_line = np.linspace(self.df[x_col].min(), self.df[x_col].max(), 100)
+        y_line = coefs["intercept"] + coefs[x_col] * x_line
+        ax.plot(x_line, y_line, color="tab:red", linewidth=2,
+                label=f"Regressionslinje (R² = {r2:.2f})")
+
+        ax.set_title(f"{y_col} och {x_col}")
+        ax.set_xlabel(x_col)
+        ax.set_ylabel(y_col)
+        ax.grid(True)
+        ax.legend()
+        return ax
+
+    def plot_predicted_vs_actual(self, x_cols, y_col="systolic_bp", ax=None):
+        """
+        Jämför verkliga och förutsagda värden för en regressionsmodell.
+
+        Om modellen vore perfekt skulle alla punkter ligga på den
+        streckade linjen y = x.
+
+        Parametrar
+        ----------
+        x_cols : list of str
+            De förklarande variablerna.
+        y_col : str, standard "systolic_bp"
+            Variabeln som förutsägs.
+        ax : matplotlib.axes.Axes, valfri
+            Axel att rita i.
+
+        Returnerar
+        ----------
+        matplotlib.axes.Axes
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6, 6))
+
+        _, r2, y_pred = self.fit_regression(x_cols, y_col)
+        y_true = self.df[y_col]
+
+        ax.scatter(y_true, y_pred, alpha=0.4)
+        lims = [y_true.min(), y_true.max()]
+        ax.plot(lims, lims, color="tab:red", linestyle="--", label="Perfekt modell (y = x)")
+
+        ax.set_title(f"Verkligt mot förutsagt {y_col} (R² = {r2:.2f})")
+        ax.set_xlabel(f"Verkligt {y_col}")
+        ax.set_ylabel(f"Förutsagt {y_col}")
+        ax.grid(True)
+        ax.legend()
         return ax
