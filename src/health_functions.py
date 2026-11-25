@@ -6,6 +6,7 @@ konfidensintervall, hypotesprövning och powersimulering.
 """
 
 import numpy as np
+import pandas as pd
 from scipy import stats
 
 def descriptive_stats(df, cols):
@@ -243,3 +244,33 @@ def two_proportion_ztest(x1, x2):
     p_value = 2 * stats.norm.sf(abs(z))
 
     return float(p1), float(p2), float(z), float(p_value)
+
+def compare_regression_models(df, models, y_col):
+    """
+    Jämför flera linjära regressionsmodeller med R², justerat R² och RMSE.
+    
+    Parametrar
+    ----------
+    df : pandas.DataFrame
+        Datan.
+    models : dict
+        Modellnamn som nycklar och listor med förklarande variabler som värden,
+        t.ex. {"Ålder":["age"],"Ålder + vikt":["age", "weight"]}.
+    y_col : str
+        Variabeln som ska förutsägas.
+        
+    Returnerar
+    ----------
+    pandas.DataFrame
+        En rad per modell med antal variabler, R², justerat R² och RMSE.
+    """
+    n = len(df)
+    rows = []
+    for name, x_cols in models.items():
+        _, r2, y_pred = fit_linear_regression(df, x_cols, y_col)
+        k = len(x_cols)
+        adj_r2 = 1 - (1 - r2) * (n - 1) / (n - k - 1)
+        rmse = np.sqrt(np.mean((df[y_col].to_numpy() - y_pred) ** 2))
+        rows.append({"modell":name,"antal:variabler": k, 
+                    "R2": r2, "justerat_R2" : adj_r2, "RMSE":rmse})
+    return pd.DataFrame(rows).set_index("modell").round(4)
